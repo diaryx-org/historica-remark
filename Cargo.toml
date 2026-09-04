@@ -71,7 +71,7 @@ fig = { version = "3.3", default-features = false, features = ["yaml", "json", "
 # What is taken from it is the store, the filesystem seam, and the tree at a
 # revision. Nothing here writes a historica document — a remark is content, and
 # content is the caller's — which is why `layer` can be turned off at all.
-historica = { version = "1.0.0-rc.1", optional = true }
+historica = { version = "1.0.0-rc.2", optional = true }
 
 
 [dev-dependencies]

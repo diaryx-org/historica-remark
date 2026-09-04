@@ -267,7 +267,7 @@ impl Repo {
         Ok(Received {
             name: name.to_string(),
             head: head.map(|h| h.to_string()),
-            revisions: fetched.revisions,
+            revisions: fetched.revisions.len(),
             documents: fetched.documents,
             destroyed: fetched.destroyed,
             files: files.len(),
