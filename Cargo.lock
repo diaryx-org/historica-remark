@@ -173,9 +173,9 @@ dependencies = [
 
 [[package]]
 name = "historica"
-version = "1.0.0-rc.2"
+version = "1.0.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d890611e4fd991dd566f5ff1c3f79bff6533fb3c049e206f3977aa253a622ff"
+checksum = "00617740636bf5ef00818ffc1c885efd217755191a62ab633c6fadc1eb1939f0"
 dependencies = [
  "fs-transaction",
  "getrandom",
