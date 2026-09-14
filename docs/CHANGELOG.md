@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- git-cliff:begin — generated; edits here are overwritten -->
 
+_No commits since the last tag._
+
+<!-- git-cliff:end -->
+
+## v0.2.0 — 2026-09-14
+
 ### Breaking
 
 - **deps** — move to fig 4 ([`ae774a3`](https://github.com/diaryx-org/historica-remark/commit/ae774a3bf7366fbdb315d913b180846a1a140754))
@@ -18,7 +24,6 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 still pinned to fig 3.x resolves two copies of fig — refused outright,
 since fig-sys links the one native library — and `document::split`'s
 
-<!-- git-cliff:end -->
 
 ## v0.1.1 — 2026-09-03
 
