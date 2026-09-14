@@ -64,7 +64,7 @@ layer = ["dep:historica", "historica/disk"]
 # store whose documents are YAML frontmatter, JSON, or TOML. `fig-lang` is
 # deliberately absent — it adds a backend, and nothing here needs the authoring
 # dialect to read a `target:` line.
-fig = { version = "3.3", default-features = false, features = ["yaml", "json", "toml"] }
+fig = { version = "4", default-features = false, features = ["yaml", "json", "toml"] }
 # The chains this is about. A version and no path, as everywhere in this org:
 # what this crate can reach is what historica published.
 #
