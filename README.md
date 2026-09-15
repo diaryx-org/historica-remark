@@ -15,7 +15,9 @@ Model](https://www.w3.org/TR/annotation-model/), flattened into a metadata
 block: a target, a selector quoting the passage with a little of its context,
 a motivation, a body, and the revision the reader was looking at. `anchor`
 finds the quoted passage again in text that has since changed, and says how
-sure it is.
+sure it is. One motivation, `editing`, is a patch rather than a note — the
+quoted passage and what should stand in its place — and `apply` is the pure
+half of taking one; whether it lands without a hand is the store's policy.
 
 **The layer** is the transport. A layer is a companion chain — somebody else's
 single-writer history, fetched into a directory beside your own, kept current

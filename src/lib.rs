@@ -6,7 +6,9 @@
 //! flattened into a metadata block: a target, a selector quoting the passage
 //! with a little of its context, a motivation, a body, and the revision the
 //! reader was looking at. [`anchor`] finds the quoted passage again in text
-//! that has since changed, and says how sure it is.
+//! that has since changed, and says how sure it is. One motivation, `editing`, is
+//! a patch rather than a note — the quoted passage and what should stand in
+//! its place — and [`apply`] is the pure half of taking one.
 //!
 //! **The layer** ([`layer`]) is the transport. A layer is a companion
 //! chain — somebody else's single-writer history, fetched into a directory
@@ -81,9 +83,9 @@ mod error;
 pub mod layer;
 
 pub use annotation::{
-    AT_FIELD, Anchor, Annotation, AnyTarget, COLOR_FIELD, CREATOR_FIELD, EXACT_FIELD, FIELDS,
-    Fields, MOTIVATION_FIELD, Motivation, PREFIX_FIELD, Reader, SUFFIX_FIELD, Selector,
-    TARGET_FIELD, TargetCheck, VIA_FIELD, anchor,
+    AT_FIELD, Anchor, Annotation, AnyTarget, Applied, COLOR_FIELD, CREATOR_FIELD, EXACT_FIELD,
+    FIELDS, Fields, MOTIVATION_FIELD, Motivation, PREFIX_FIELD, REPLACEMENT_FIELD, Reader,
+    SUFFIX_FIELD, Selector, TARGET_FIELD, TargetCheck, VIA_FIELD, anchor, apply,
 };
 pub use error::{Error, Result};
 

@@ -25,14 +25,52 @@
 //!
 //! # Why the fields are quoted and the format is fig's
 //!
-//! `exact`, `prefix` and `suffix` are verbatim slices of somebody else's
-//! prose. Their edge whitespace is the point — the prefix above ends in a
-//! space, the suffix begins with one — and a format that trimmed them would
-//! produce an anchor that silently stops matching, in the one piece of
-//! machinery whose whole job is surviving an edit. They may also contain
+//! `exact`, `prefix`, `suffix` and `replacement` are verbatim slices of
+//! somebody's prose. Their edge whitespace is the point — the prefix above
+//! ends in a space, the suffix begins with one — and a format that trimmed
+//! them would produce an anchor that silently stops matching, in the one piece
+//! of machinery whose whole job is surviving an edit. They may also contain
 //! newlines. So the carrying format has to quote, and fig's quoted scalars
 //! are that rule already written and already tested; inventing a line grammar
 //! here would mean inventing an escape rule beside it.
+//!
+//! # Editing
+//!
+//! `editing` is the one motivation that proposes a change rather than saying
+//! something about the passage — the Web Annotation model's own term for a
+//! reader requesting an edit to the target. It is a patch, and it is shaped
+//! like one:
+//!
+//! ```yaml
+//! target: ark:12345/dxk7f2q9wl/bcdfgr
+//! at: 3f9ce1                            # the base — required, for an edit
+//! exact: "the red bouy"                 # what to replace
+//! prefix: "rowed out past "
+//! suffix: " before"
+//! motivation: editing
+//! replacement: "the red buoy"           # what to replace it with
+//! ```
+//!
+//! The replacement lives in the metadata, quoted, for the reason the selector
+//! does: it is prose whose edge whitespace and newlines are the proposal. The
+//! body stays what it is everywhere else — what the reader said, here about
+//! *why* — and may be empty. An empty `replacement` is a deletion; an
+//! insertion quotes the neighbouring text and gives it back with the new
+//! words inside it, so there is no second selector kind to anchor.
+//!
+//! Three things every other motivation may leave out are required of an
+//! edit, and a document that calls itself one without them is
+//! [`Error::Unreadable`]: the base revision, because a patch without a base
+//! is a guess; a selector, because this crate does not define a whole-document
+//! patch; and the replacement itself. The converse holds too — a
+//! `replacement` on a comment is a document that says two things about
+//! itself.
+//!
+//! [`apply`] is the pure half of taking one: anchor the selector in a text
+//! and splice the replacement in, reporting the anchor so the caller can see
+//! whether it was certain. Whether a given anchor is certain *enough* — and
+//! whether the person proposing it may have it applied without a hand — are
+//! policies, and they belong to whoever holds the store.
 //!
 //! # Why the target is opaque
 //!
@@ -61,6 +99,9 @@ pub const PREFIX_FIELD: &str = "prefix";
 pub const SUFFIX_FIELD: &str = "suffix";
 pub const MOTIVATION_FIELD: &str = "motivation";
 pub const COLOR_FIELD: &str = "color";
+/// What an `editing` remark proposes in the quoted passage's place. Present
+/// on an edit and on nothing else; empty for a deletion.
+pub const REPLACEMENT_FIELD: &str = "replacement";
 
 /// Every field a remark declares, in the order they are written.
 pub const FIELDS: &[&str] = &[
@@ -71,6 +112,7 @@ pub const FIELDS: &[&str] = &[
     SUFFIX_FIELD,
     MOTIVATION_FIELD,
     COLOR_FIELD,
+    REPLACEMENT_FIELD,
 ];
 
 /// Two more Web Annotation properties, written by a store that takes a copy
@@ -187,16 +229,21 @@ pub enum Motivation {
     Replying,
     /// Keeping a place.
     Bookmarking,
+    /// Proposing a change to a passage: the quoted text, and what should
+    /// stand in its place. The one motivation that is a patch — see the
+    /// module note on what it requires.
+    Editing,
 }
 
 impl Motivation {
     /// Every motivation, in the order a picker offers them.
-    pub const ALL: [Motivation; 5] = [
+    pub const ALL: [Motivation; 6] = [
         Motivation::Highlighting,
         Motivation::Commenting,
         Motivation::Questioning,
         Motivation::Replying,
         Motivation::Bookmarking,
+        Motivation::Editing,
     ];
 
     /// The Web Annotation spelling, which is what the field carries.
@@ -207,6 +254,7 @@ impl Motivation {
             Motivation::Questioning => "questioning",
             Motivation::Replying => "replying",
             Motivation::Bookmarking => "bookmarking",
+            Motivation::Editing => "editing",
         }
     }
 
@@ -281,6 +329,10 @@ pub struct Annotation {
     pub color: Option<String>,
     /// What the reader said. Empty for a highlight.
     pub body: String,
+    /// What an edit proposes in the quoted passage's place — `Some("")` is
+    /// a deletion. `Some` exactly when the motivation is
+    /// [`Motivation::Editing`]; see [`check`](Self::check).
+    pub replacement: Option<String>,
 }
 
 impl Annotation {
@@ -293,6 +345,60 @@ impl Annotation {
             motivation,
             color: None,
             body: String::new(),
+            replacement: None,
+        }
+    }
+
+    /// A proposed change to `target` as it stood at revision `at`: the
+    /// passage `selector` quotes, replaced by `replacement`. The body is
+    /// left for the reader to say why.
+    pub fn edit(
+        target: impl Into<String>,
+        at: impl Into<String>,
+        selector: Selector,
+        replacement: impl Into<String>,
+    ) -> Self {
+        Self {
+            target: target.into(),
+            at: Some(at.into()),
+            selector: Some(selector),
+            motivation: Motivation::Editing,
+            color: None,
+            body: String::new(),
+            replacement: Some(replacement.into()),
+        }
+    }
+
+    /// Whether this remark says one thing about itself.
+    ///
+    /// An edit needs a base revision, a selector with something in it, and a
+    /// replacement; anything else must not carry a replacement. [`Reader`]
+    /// refuses a document that fails this, and a writer building one by hand
+    /// can ask before writing it.
+    pub fn check(&self) -> Result<()> {
+        let editing = self.motivation == Motivation::Editing;
+        let quoted = self.selector.as_ref().is_some_and(|s| !s.exact.is_empty());
+        match (
+            editing,
+            self.at.is_some(),
+            quoted,
+            self.replacement.is_some(),
+        ) {
+            (true, true, true, true) | (false, _, _, false) => Ok(()),
+            (true, false, _, _) => Err(Error::Unreadable(
+                "an edit names no `at` — a patch needs the revision it was made against".into(),
+            )),
+            (true, _, false, _) => Err(Error::Unreadable(
+                "an edit quotes nothing — a patch needs the passage it replaces".into(),
+            )),
+            (true, _, _, false) => Err(Error::Unreadable(
+                "an edit has no `replacement` — a patch needs what goes in the passage's place"
+                    .into(),
+            )),
+            (false, _, _, true) => Err(Error::Unreadable(format!(
+                "a `replacement` on a remark whose motivation is {} — only an edit carries one",
+                self.motivation
+            ))),
         }
     }
 
@@ -322,6 +428,7 @@ impl Annotation {
         }
         put(MOTIVATION_FIELD, Some(self.motivation.as_str()));
         put(COLOR_FIELD, self.color.as_deref());
+        put(REPLACEMENT_FIELD, self.replacement.as_deref());
         out
     }
 
@@ -417,14 +524,17 @@ impl<C: TargetCheck> Reader<C> {
             prefix: owned(PREFIX_FIELD),
             suffix: owned(SUFFIX_FIELD),
         });
-        Ok(Some(Annotation {
+        let annotation = Annotation {
             target: target.to_string(),
             at: owned(AT_FIELD),
             selector,
             motivation,
             color: owned(COLOR_FIELD),
             body: body.to_string(),
-        }))
+            replacement: owned(REPLACEMENT_FIELD),
+        };
+        annotation.check()?;
+        Ok(Some(annotation))
     }
 
     /// [`read`](Self::read), for a whole document this crate parses itself —
@@ -506,6 +616,54 @@ pub fn anchor(selector: &Selector, text: &str) -> Option<Anchor> {
         end: start + selector.exact.len(),
         certain: score == 4 || (occurrences == 1 && score >= 2),
     })
+}
+
+// ---------------------------------------------------------------------------
+// Applying an edit
+// ---------------------------------------------------------------------------
+
+/// An edit, applied to a text: the text as it would read, and where in the
+/// old text the quoted passage was found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Applied {
+    /// The text with the replacement in the passage's place.
+    pub text: String,
+    /// Where the passage was in the text it was applied to, and whether the
+    /// finding was certain. An uncertain anchor is a replacement that landed
+    /// somewhere the reader may not have meant; what to do with one is the
+    /// caller's policy.
+    pub anchor: Anchor,
+}
+
+/// Apply an `editing` remark to `text`.
+///
+/// Anchors the selector by [`anchor`]'s rule and splices the replacement in
+/// where it landed. `Ok(None)` when the quoted passage is not in the text at
+/// all — an orphaned edit, with nothing to apply it to. `Err` when `edit` is
+/// not an edit, which is a caller's mistake rather than a fact about the text.
+///
+/// Pure: the text is a string and the result is a string. Whether the
+/// revision being edited is the one the edit was made against, and whether it
+/// may be applied without a hand, are decided by whoever holds the store.
+pub fn apply(edit: &Annotation, text: &str) -> Result<Option<Applied>> {
+    edit.check()?;
+    let (Some(selector), Some(replacement)) = (&edit.selector, &edit.replacement) else {
+        return Err(Error::Unreadable(format!(
+            "cannot apply a remark whose motivation is {} — only an edit proposes a change",
+            edit.motivation
+        )));
+    };
+    let Some(found) = anchor(selector, text) else {
+        return Ok(None);
+    };
+    let mut out = String::with_capacity(text.len() + replacement.len());
+    out.push_str(&text[..found.start]);
+    out.push_str(replacement);
+    out.push_str(&text[found.end..]);
+    Ok(Some(Applied {
+        text: out,
+        anchor: found,
+    }))
 }
 
 #[cfg(test)]
@@ -707,5 +865,167 @@ mod tests {
         assert_eq!(one.terms("audience"), vec!["grandma"]);
         assert_eq!(many.terms("audience"), vec!["grandma", "mom"]);
         assert!(one.terms("nobody").is_empty());
+    }
+
+    // -- editing ----------------------------------------------------------
+
+    fn edit(exact: &str, prefix: &str, suffix: &str, replacement: &str) -> Annotation {
+        Annotation::edit(
+            "doc:1",
+            "3f9c",
+            Selector::in_context(exact, prefix, suffix),
+            replacement,
+        )
+    }
+
+    /// The replacement is metadata, quoted, for the reason the selector is:
+    /// its edge whitespace and newlines are the proposal, and a body would
+    /// have lost them to the blank line `render` writes.
+    #[test]
+    fn an_edit_round_trips_with_its_replacement_intact() {
+        let mut fix = edit(
+            "the red bouy",
+            "rowed out past ",
+            " before",
+            "the red buoy ",
+        );
+        fix.body = "typo".into();
+        let back = Reader::new()
+            .document(&fix.render().unwrap())
+            .unwrap()
+            .unwrap();
+        assert_eq!(back.motivation, Motivation::Editing);
+        assert_eq!(back.replacement.as_deref(), Some("the red buoy "));
+        assert_eq!(back.body.trim(), "typo");
+
+        // A deletion is an empty replacement, and empty is not absent.
+        let cut = edit("the red bouy ", "rowed out past ", "before", "");
+        let fields = cut.fields();
+        assert_eq!(
+            fields.iter().find(|(k, _)| *k == REPLACEMENT_FIELD),
+            Some(&(REPLACEMENT_FIELD, String::new()))
+        );
+        let back = Reader::new()
+            .document(&cut.render().unwrap())
+            .unwrap()
+            .unwrap();
+        assert_eq!(back.replacement.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn an_edit_applies_where_its_quote_is_found() {
+        let text = "We rowed out past the red bouy before dark.";
+        let fix = edit("the red bouy", "rowed out past ", " before", "the red buoy");
+        let done = apply(&fix, text).unwrap().unwrap();
+        assert_eq!(done.text, "We rowed out past the red buoy before dark.");
+        assert!(done.anchor.certain);
+        assert_eq!(&text[done.anchor.start..done.anchor.end], "the red bouy");
+
+        // Deletion and insertion are the same operation with a different
+        // replacement: nothing, or the quote given back with more in it.
+        let cut = edit(" before dark", "bouy", ".", "");
+        assert_eq!(
+            apply(&cut, text).unwrap().unwrap().text,
+            "We rowed out past the red bouy."
+        );
+        let add = edit("before dark", "bouy ", ".", "before dark, laughing");
+        assert_eq!(
+            apply(&add, text).unwrap().unwrap().text,
+            "We rowed out past the red bouy before dark, laughing."
+        );
+    }
+
+    /// The text moved on since the edit was made. The quote is still there,
+    /// so the edit still lands — but the anchor says the surroundings the
+    /// reader saw are gone, and that is the caller's cue to ask a person.
+    #[test]
+    fn an_edit_against_changed_text_lands_but_says_so() {
+        let text = "Later we rowed to the red bouy and back.";
+        let fix = edit("the red bouy", "rowed out past ", " before", "the red buoy");
+        let done = apply(&fix, text).unwrap().unwrap();
+        assert_eq!(done.text, "Later we rowed to the red buoy and back.");
+        assert!(!done.anchor.certain);
+    }
+
+    #[test]
+    fn an_edit_whose_quote_is_gone_is_orphaned() {
+        let fix = edit("the red bouy", "past ", " before", "the red buoy");
+        assert_eq!(apply(&fix, "We stayed ashore.").unwrap(), None);
+    }
+
+    #[test]
+    fn only_an_edit_can_be_applied() {
+        let mut note = Annotation::new("doc:1", Motivation::Commenting);
+        note.selector = Some(Selector::quoting("bouy"));
+        assert!(matches!(
+            apply(&note, "the bouy").unwrap_err(),
+            Error::Unreadable(_)
+        ));
+    }
+
+    /// An edit says one thing about itself, or it is not read. Each of the
+    /// three halves a patch needs is checked, and so is the converse.
+    #[test]
+    fn an_edit_missing_a_half_is_refused_and_so_is_a_comment_with_one() {
+        let whole = edit("bouy", "", "", "buoy");
+        assert!(whole.check().is_ok());
+
+        let mut no_base = whole.clone();
+        no_base.at = None;
+        assert!(no_base.check().unwrap_err().to_string().contains("`at`"));
+
+        let mut no_quote = whole.clone();
+        no_quote.selector = None;
+        assert!(
+            no_quote
+                .check()
+                .unwrap_err()
+                .to_string()
+                .contains("quotes nothing")
+        );
+        no_quote.selector = Some(Selector::quoting(""));
+        assert!(no_quote.check().is_err());
+
+        let mut no_replacement = whole.clone();
+        no_replacement.replacement = None;
+        assert!(
+            no_replacement
+                .check()
+                .unwrap_err()
+                .to_string()
+                .contains("`replacement`")
+        );
+
+        let mut comment = whole.clone();
+        comment.motivation = Motivation::Commenting;
+        assert!(
+            comment
+                .check()
+                .unwrap_err()
+                .to_string()
+                .contains("commenting")
+        );
+
+        // And the reader enforces the same rule on a document it did not
+        // write: a comment carrying a replacement is not a remark.
+        let odd = meta(&[
+            (TARGET_FIELD, "doc:1"),
+            (MOTIVATION_FIELD, "commenting"),
+            (REPLACEMENT_FIELD, "buoy"),
+        ]);
+        assert!(matches!(
+            Reader::new().read(&odd, "").unwrap_err(),
+            Error::Unreadable(_)
+        ));
+        let half = meta(&[
+            (TARGET_FIELD, "doc:1"),
+            (MOTIVATION_FIELD, "editing"),
+            (EXACT_FIELD, "bouy"),
+            (REPLACEMENT_FIELD, "buoy"),
+        ]);
+        assert!(matches!(
+            Reader::new().read(&half, "").unwrap_err(),
+            Error::Unreadable(_)
+        ));
     }
 }
