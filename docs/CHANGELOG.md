@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- git-cliff:begin — generated; edits here are overwritten -->
 
+_No commits since the last tag._
+
+<!-- git-cliff:end -->
+
+## v0.3.0 — 2026-09-15
+
 ### Breaking
 
 - **annotation** — an `editing` motivation, a `replacement` field, and `apply` ([`69af858`](https://github.com/diaryx-org/historica-remark/commit/69af858aea65f65007ed60032110572836c6c26c))
@@ -24,7 +30,6 @@ and validates against them will refuse an edit until it re-declares.
 - `Annotation::fields()` and `FIELDS` include
 `replacement`, written only when set.
 
-<!-- git-cliff:end -->
 
 ## v0.2.0 — 2026-09-14
 
