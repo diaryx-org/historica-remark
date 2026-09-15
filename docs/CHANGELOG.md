@@ -8,7 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- git-cliff:begin — generated; edits here are overwritten -->
 
-_No commits since the last tag._
+### Breaking
+
+- **annotation** — an `editing` motivation, a `replacement` field, and `apply` ([`69af858`](https://github.com/diaryx-org/historica-remark/commit/69af858aea65f65007ed60032110572836c6c26c))
+
+### Behavioural changes
+
+- `Reader::read` and `Reader::document` now return
+
+- `Motivation::ALL` and `Motivation::terms()` include
+`editing`, so a store that declares the motivation vocabulary from
+`terms()` now declares six terms; a store that declared five earlier
+and validates against them will refuse an edit until it re-declares.
+
+- `Annotation::fields()` and `FIELDS` include
+`replacement`, written only when set.
 
 <!-- git-cliff:end -->
 
