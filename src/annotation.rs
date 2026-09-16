@@ -604,7 +604,10 @@ pub fn anchor(selector: &Selector, text: &str) -> Option<Anchor> {
         if best.is_none_or(|(held, _)| score > held) {
             best = Some((score, start));
         }
-        from = start + 1;
+        // On by one character, not one byte: a quote that opens with an
+        // em dash or a curly quote starts on a three-byte character, and a
+        // byte into it is not a place a `&str` can be sliced.
+        from = start + selector.exact.chars().next().map_or(1, char::len_utf8);
         if from >= text.len() {
             break;
         }
@@ -723,6 +726,17 @@ mod tests {
         assert!(!found.certain);
         let alone = anchor(&selector("and again and", None, None), text).unwrap();
         assert!(alone.certain, "unique, and no context recorded to disagree");
+    }
+
+    #[test]
+    fn a_quote_opening_on_a_multibyte_character_is_found() {
+        // Stepping past a candidate by one byte lands inside the em dash,
+        // and slicing there is a panic rather than a miss.
+        let text = "so — apple, then — apple again";
+        let found = anchor(&selector("— apple", Some("then "), Some(" again")), text).unwrap();
+        assert_eq!(&text[found.start..found.end], "— apple");
+        assert_eq!(found.start, "so — apple, then ".len());
+        assert!(found.certain);
     }
 
     #[test]
