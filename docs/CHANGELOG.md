@@ -12,6 +12,27 @@ _No commits since the last tag._
 
 <!-- git-cliff:end -->
 
+## v0.4.0 — 2026-09-28
+
+### Breaking
+
+- **deps** — move to fig 5 ([`fb6000c`](https://github.com/diaryx-org/historica-remark/commit/fb6000c2ad2250a57d4bbd4ff82203f8715d56f1))
+
+### Fixed
+
+- **annotation** — step between candidate matches by a character, not a byte ([`ecc4189`](https://github.com/diaryx-org/historica-remark/commit/ecc4189e8c5e2c8e732dc5c35cf050e4defc4aab))
+
+### Behavioural changes
+
+- `anchor` no longer panics on a selector whose `exact`
+begins with a multibyte character when the text holds more than one
+occurrence; it returns the best-scored one as for any other quote.
+
+- historica-remark now requires `fig = "5"`. A consumer
+still pinned to fig 4.x resolves two copies of fig — refused outright,
+since fig-sys links the one native library — and `document::split`'s
+
+
 ## v0.3.0 — 2026-09-15
 
 ### Breaking
