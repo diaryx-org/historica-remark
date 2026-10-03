@@ -225,6 +225,11 @@ pub enum Motivation {
     Commenting,
     /// Asking something about a passage.
     Questioning,
+    /// Judging whether a passage holds up — the Web Annotation model's term
+    /// for "a review or assessment". The term covers praise as well as
+    /// critique; a store that has another channel for one of them may narrow
+    /// it by convention.
+    Assessing,
     /// Answering another remark — whose document is then the target.
     Replying,
     /// Keeping a place.
@@ -237,10 +242,11 @@ pub enum Motivation {
 
 impl Motivation {
     /// Every motivation, in the order a picker offers them.
-    pub const ALL: [Motivation; 6] = [
+    pub const ALL: [Motivation; 7] = [
         Motivation::Highlighting,
         Motivation::Commenting,
         Motivation::Questioning,
+        Motivation::Assessing,
         Motivation::Replying,
         Motivation::Bookmarking,
         Motivation::Editing,
@@ -252,6 +258,7 @@ impl Motivation {
             Motivation::Highlighting => "highlighting",
             Motivation::Commenting => "commenting",
             Motivation::Questioning => "questioning",
+            Motivation::Assessing => "assessing",
             Motivation::Replying => "replying",
             Motivation::Bookmarking => "bookmarking",
             Motivation::Editing => "editing",
@@ -764,6 +771,28 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(back, note);
+    }
+
+    /// Every motivation is read back as the one that was written — the
+    /// closed set is closed in both directions.
+    #[test]
+    fn every_motivation_round_trips_through_a_document() {
+        for motivation in Motivation::ALL {
+            let mut note = Annotation::new("doc:1", motivation);
+            note.at = Some("3f9c".into());
+            note.selector = Some(selector("freeze", None, None));
+            note.body = "Does it?".into();
+            if motivation == Motivation::Editing {
+                note.replacement = Some("thaw".into());
+            }
+            let back = Reader::new()
+                .document(&note.render().unwrap())
+                .unwrap()
+                .unwrap();
+            assert_eq!(back.motivation, motivation);
+            assert_eq!(Motivation::parse(motivation.as_str()), Some(motivation));
+        }
+        assert_eq!(Motivation::parse("assessing"), Some(Motivation::Assessing));
     }
 
     /// The property that decided the serialisation. `prefix` ends in a space
