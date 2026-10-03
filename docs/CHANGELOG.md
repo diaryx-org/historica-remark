@@ -12,6 +12,19 @@ _No commits since the last tag._
 
 <!-- git-cliff:end -->
 
+## v0.5.0 — 2026-10-03
+
+### Breaking
+
+- **annotation** — an `assessing` motivation ([`ec271a4`](https://github.com/diaryx-org/historica-remark/commit/ec271a4ce033e304fd100799a0c3a723b188a7a4))
+
+### Behavioural changes
+
+- `Reader::read` and `Reader::document` now read a document whose `motivation` is `assessing`, which before this commit was an unknown motivation and `Error::Unreadable`.
+
+- `Motivation::ALL` and `Motivation::terms()` include `assessing`, so a store that declares the motivation vocabulary from `terms()` now declares seven terms; one that declared six and validates against them refuses an assessment until it re-declares.
+
+
 ## v0.4.0 — 2026-09-28
 
 ### Breaking
