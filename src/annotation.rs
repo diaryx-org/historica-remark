@@ -847,9 +847,11 @@ pub struct Anchor {
     pub start: usize,
     /// Byte offset just past the quote's end.
     pub end: usize,
-    /// Whether the recorded prefix and suffix both agreed with what surrounds
-    /// the quote here. `false` is a quote found in changed surroundings — or
-    /// one of several occurrences, with nothing to choose between them.
+    /// Whether what was recorded of the prefix and suffix agrees with what
+    /// surrounds the quote here, and picks this occurrence out. `false` is a
+    /// quote found in changed surroundings, on either side — or one of several
+    /// occurrences, overlapping ones included, without both sides recorded and
+    /// agreeing to choose it.
     pub certain: bool,
 }
 
@@ -862,11 +864,13 @@ pub fn anchor(selector: &Selector, text: &str) -> Option<Anchor> {
     if selector.exact.is_empty() {
         return None;
     }
-    let mut best: Option<(u8, usize)> = None;
+    let mut best: Option<(u8, bool, usize)> = None;
+    let mut occurrences = 0;
     let mut from = 0;
     while let Some(found) = text[from..].find(&selector.exact) {
         let start = from + found;
         let end = start + selector.exact.len();
+        occurrences += 1;
         let before = selector
             .prefix
             .as_deref()
@@ -886,8 +890,11 @@ pub fn anchor(selector: &Selector, text: &str) -> Option<Anchor> {
                 None => 1,
             })
             .sum::<u8>();
-        if best.is_none_or(|(held, _)| score > held) {
-            best = Some((score, start));
+        // Asked apart from the score, which cannot say it: one side agreeing
+        // and one disagreeing adds up to the same as two sides never recorded.
+        let disagrees = before == Some(false) || after == Some(false);
+        if best.is_none_or(|(held, ..)| score > held) {
+            best = Some((score, disagrees, start));
         }
         // On by one character, not one byte: a quote that opens with an
         // em dash or a curly quote starts on a three-byte character, and a
@@ -897,12 +904,11 @@ pub fn anchor(selector: &Selector, text: &str) -> Option<Anchor> {
             break;
         }
     }
-    let (score, start) = best?;
-    let occurrences = text.matches(&selector.exact).count();
+    let (score, disagrees, start) = best?;
     Some(Anchor {
         start,
         end: start + selector.exact.len(),
-        certain: score == 4 || (occurrences == 1 && score >= 2),
+        certain: !disagrees && (score == 4 || occurrences == 1),
     })
 }
 
@@ -1011,6 +1017,52 @@ mod tests {
         assert!(!found.certain);
         let alone = anchor(&selector("and again and", None, None), text).unwrap();
         assert!(alone.certain, "unique, and no context recorded to disagree");
+    }
+
+    #[test]
+    fn a_recorded_side_that_disagrees_is_uncertain_whichever_side_it_is() {
+        let text = "We crossed the lake froze over.";
+
+        // The suffix was recorded and is gone; only the prefix agrees.
+        let sel = Selector::in_context("lake", "the ", " thawed");
+        assert!(!anchor(&sel, text).unwrap().certain);
+
+        // The same with the sides the other way round.
+        let sel = Selector::in_context("lake", "a ", " froze");
+        assert!(!anchor(&sel, text).unwrap().certain);
+
+        // One side never recorded does not excuse the other disagreeing.
+        let sel = selector("lake", Some("a "), None);
+        assert!(!anchor(&sel, text).unwrap().certain);
+    }
+
+    #[test]
+    fn a_unique_quote_with_no_side_disagreeing_is_certain() {
+        let text = "We crossed the lake froze over.";
+        let prefix_only = selector("lake", Some("the "), None);
+        assert!(anchor(&prefix_only, text).unwrap().certain);
+        let suffix_only = selector("lake", None, Some(" froze"));
+        assert!(anchor(&suffix_only, text).unwrap().certain);
+    }
+
+    #[test]
+    fn a_quote_overlapping_itself_is_more_than_one_occurrence() {
+        // "ana" is in "banana" twice, at 1 and at 3, and nothing chooses
+        // between them.
+        let found = anchor(&Selector::quoting("ana"), "banana").unwrap();
+        assert_eq!(found.start, 1);
+        assert!(!found.certain);
+
+        let edit = Annotation::edit("doc", "3f9c", Selector::quoting("ana"), "X");
+        let applied = apply(&edit, "banana").unwrap().unwrap();
+        assert_eq!(applied.text, "bXna");
+        assert!(!applied.anchor.certain);
+
+        // Both recorded sides still choose one of them.
+        let sel = Selector::in_context("ana", "ban", "");
+        let found = anchor(&sel, "banana").unwrap();
+        assert_eq!(found.start, 3);
+        assert!(found.certain);
     }
 
     #[test]
