@@ -2,11 +2,15 @@
 title: An anchor is certain where its context disagrees
 part_of: '[Tasks](tasks.md)'
 created: 2026-11-07T01:43:52.646473Z
-status: open
+status: done
 description: '`anchor` calls a quote certain when one recorded side of its context disagrees, because that scores the same as two sides never recorded, and when the quote overlaps a second occurrence of itself, because `str::matches` counts only one; `apply` reports the same certainty for a replacement that may have landed in the wrong place'
 ---
 
 # An anchor is certain where its context disagrees
+
+**Status.** Done, in `fix(annotation): an anchor is uncertain where a recorded
+side disagrees` (2026-11-07). `anchor` asks whether a recorded side disagrees
+apart from the score, and counts occurrences in the loop that visits them.
 
 [`Anchor::certain`](../../src/annotation.rs) promises less than `anchor` gives.
 Its doc says it is whether "the recorded prefix and suffix both agreed", and
