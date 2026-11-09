@@ -2,8 +2,8 @@
 title: Tasks
 description: Deferred work in historica-remark — one file each, every one with a done state
 created: 2026-11-06
-updated: 2026-11-06
-contents: ['[An anchor is certain where its context disagrees](an-anchor-is-certain-where-its-context-disagrees.md)']
+updated: 2026-11-08
+contents: ['[An anchor is certain where its context disagrees](an-anchor-is-certain-where-its-context-disagrees.md)', '[An anchor is certain between twin occurrences](an-anchor-is-certain-between-twin-occurrences.md)']
 ---
 
 # Tasks
